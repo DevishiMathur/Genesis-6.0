@@ -17,7 +17,7 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="absolute top-0 left-0 z-50 w-full px-6 py-4 md:px-12 md:py-6">
+    <nav className="absolute top-0 left-0 z-50 w-full px-6 py-4 md:px-12 md:py-6 font-absans">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         
         {/* Brand Logo Container */}
@@ -25,9 +25,10 @@ export default function Navbar() {
           <Image
             src="/genesislogo.png"
             alt="Genesis Logo"
-            width={140}
-            height={44}
-            className="h-11 w-auto object-contain"
+            width={182}
+            height={57}
+            style={{ height: "57px" }}
+            className="w-auto object-contain"
             priority
           />
         </Link>
@@ -39,7 +40,7 @@ export default function Navbar() {
               <Link
                 key={link.label}
                 href={link.href}
-                className="text-[15px] font-semibold text-blue-100 hover:text-white transition-colors duration-200"
+                className="text-[17px] font-semibold text-blue-100 hover:text-white transition-colors duration-200"
               >
                 {link.label}
               </Link>
@@ -48,7 +49,7 @@ export default function Navbar() {
 
           <Link
             href="#register"
-            className="inline-flex items-center justify-center rounded-full bg-[#1a73e8] px-6 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1557b0] active:scale-[0.98] transition-all duration-200"
+            className="inline-flex items-center justify-center rounded-full bg-[#1a73e8] px-6 py-3.5 text-[16px] font-semibold text-white shadow-sm hover:bg-[#1557b0] active:scale-[0.98] transition-all duration-200"
           >
             Register Now
           </Link>
@@ -101,7 +102,7 @@ export default function Navbar() {
                 key={link.label}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-medium text-blue-100 hover:text-white border-b border-white/5 pb-2 transition-colors duration-200"
+                className="text-[18px] font-medium text-blue-100 hover:text-white border-b border-white/5 pb-2 transition-colors duration-200"
               >
                 {link.label}
               </Link>
@@ -109,7 +110,7 @@ export default function Navbar() {
             <Link
               href="#register"
               onClick={() => setMobileMenuOpen(false)}
-              className="mt-2 inline-flex items-center justify-center rounded-full bg-[#1a73e8] py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#1557b0] transition-colors duration-200"
+              className="mt-2 inline-flex items-center justify-center rounded-full bg-[#1a73e8] py-3 text-[16px] font-semibold text-white shadow-sm hover:bg-[#1557b0] transition-colors duration-200"
             >
               Register Now
             </Link>

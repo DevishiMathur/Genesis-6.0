@@ -10,6 +10,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-outfit), var(--font-geist-sans), sans-serif;
   --font-mono: var(--font-geist-mono);
+  --font-google-sans: "Google Sans", var(--font-outfit), sans-serif;
+  --font-absans: var(--font-absans), sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {

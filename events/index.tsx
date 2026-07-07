@@ -17,7 +17,6 @@ const TICKETS_DATA: TicketData[] = [
     color: "bg-[#ff68a8]", // Pink ticket
     glowColor: "shadow-pink-500/20 hover:shadow-pink-500/40",
     ticketId: "8892-GNS",
-    cutoutBg: "bg-[#0b1f3d]",
   },
   {
     id: "2",
@@ -29,7 +28,6 @@ const TICKETS_DATA: TicketData[] = [
     color: "bg-[#3cbbf6]", // Blue ticket
     glowColor: "shadow-blue-500/20 hover:shadow-blue-500/40",
     ticketId: "5541-GNS",
-    cutoutBg: "bg-[#0d264e]",
   },
   {
     id: "3",
@@ -41,7 +39,6 @@ const TICKETS_DATA: TicketData[] = [
     color: "bg-[#4ade80]", // Green ticket
     glowColor: "shadow-emerald-500/20 hover:shadow-emerald-500/40",
     ticketId: "7729-GNS",
-    cutoutBg: "bg-[#0f2e60]",
   },
 ];
 

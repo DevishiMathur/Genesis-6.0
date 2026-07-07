@@ -7,10 +7,9 @@ interface TicketData {
   date: string;
   venue: string;
   price: string;
-  color: string; // Tailwind bg class (e.g., bg-[#ff68a8])
-  glowColor: string; // Tailwind shadow class (e.g., shadow-pink-500/20)
+  color: string; 
+  glowColor: string; 
   ticketId: string;
-  cutoutBg: string; // Matching background to simulate cutouts
 }
 
 interface TicketCardProps {
@@ -18,9 +17,59 @@ interface TicketCardProps {
 }
 
 export default function TicketCard({ ticket }: TicketCardProps) {
+  const generateClipPath = () => {
+    const numNotches = 12;
+    const w = 100 / numNotches;
+    const bottomPoints: string[] = [];
+
+    for (let i = 0; i < numNotches; i++) {
+      const xStart = 100 - i * w;
+      // Scalloped circular cutouts 
+      bottomPoints.push(
+        `${xStart}% 100%`,
+        `${xStart - 0.25 * w}% calc(100% - 9px)`,
+        `${xStart - 0.5 * w}% calc(100% - 12px)`,
+        `${xStart - 0.75 * w}% calc(100% - 9px)`
+      );
+    }
+    bottomPoints.push(`0% 100%`);
+
+    const points = [
+      "0% 0%",
+      "100% 0%",
+      // Right side circular cutout notch
+      "100% 37.5%",
+      "98% 38.2%",
+      "96.5% 39.0%",
+      "95% 40.0%",
+      "96.5% 41.0%",
+      "98% 41.8%",
+      "100% 42.5%",
+      // Right bottom corner
+      "100% calc(100% - 12px)",
+      // Bottom circular scallops
+      ...bottomPoints,
+      // Left bottom corner
+      "0% calc(100% - 12px)",
+      // Left side circular cutout notch
+      "0% 42.5%",
+      "2% 41.8%",
+      "3.5% 41.0%",
+      "5% 40.0%",
+      "3.5% 39.0%",
+      "2% 38.2%",
+      "0% 37.5%"
+    ];
+
+    return `polygon(${points.join(", ")})`;
+  };
+
   return (
     <div
       className={`ticket-wrapper group relative flex flex-col h-[520px] w-full max-w-[340px] mx-auto rounded-3xl ${ticket.color} text-slate-950 shadow-2xl ${ticket.glowColor} hover:scale-105 hover:-translate-y-2 transition-all duration-500 cursor-pointer`}
+      style={{
+        clipPath: generateClipPath(),
+      }}
     >
       {/* Top Section (White Card Logo Area) */}
       <div className="bg-white m-4 p-5 rounded-2xl flex flex-col justify-between min-h-[160px] shadow-sm">
@@ -51,13 +100,9 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         </div>
       </div>
 
-      {/* Perforation Line & Cutouts */}
+      {/* Perforation Line */}
       <div className="relative my-2">
         <div className="border-t-2 border-dashed border-white/50 w-full" />
-        {/* Left Cutout */}
-        <div className={`absolute -left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full ${ticket.cutoutBg} shadow-[inset_-3px_0_5px_rgba(0,0,0,0.1)]`} />
-        {/* Right Cutout */}
-        <div className={`absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full ${ticket.cutoutBg} shadow-[inset_3px_0_5px_rgba(0,0,0,0.1)]`} />
       </div>
 
       {/* Ticket Details (Middle Section) */}
@@ -92,7 +137,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       </div>
 
       {/* Bottom Section (Barcode Area) */}
-      <div className="bg-white mx-4 mb-5 p-3 rounded-2xl flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
+      <div className="bg-white mx-4 mb-6 p-3 rounded-2xl flex flex-col items-center justify-center shadow-sm relative overflow-hidden">
         {/* Barcode representation */}
         <div className="flex items-stretch justify-center gap-[2px] h-10 w-full px-1">
           {[
@@ -110,16 +155,6 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         <div className="text-[10px] text-slate-500 font-mono tracking-wider mt-1.5 font-semibold">
           Ticket Id: {ticket.ticketId}
         </div>
-      </div>
-
-      {/* Scalloped Bottom Edge circles */}
-      <div className="absolute -bottom-1.5 left-0 right-0 flex justify-between px-3 overflow-hidden pointer-events-none">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <div
-            key={i}
-            className={`w-3.5 h-3.5 rounded-full ${ticket.cutoutBg} shrink-0`}
-          />
-        ))}
       </div>
     </div>
   );

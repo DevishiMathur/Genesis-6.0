@@ -146,6 +146,7 @@ export default function Gallery() {
       let cardWidth = 0;
       let cardGap = 0;
       let marqueeWidth = 0;
+      let marqueeHeight = 0;
       let lastMarqueeY = 0;
       let smoothVelY = 0;
 
@@ -162,6 +163,9 @@ export default function Gallery() {
         if (marquee) {
           marqueeWidth = marquee.offsetWidth;
         }
+        if (marqueeSection) {
+          marqueeHeight = marqueeSection.offsetHeight;
+        }
       };
 
       updateDimensions();
@@ -170,9 +174,9 @@ export default function Gallery() {
       const updatePhysics = () => {
         if (cards.length === 0) return;
 
-        if (cardWidth === 0 || marqueeWidth === 0) {
+        if (cardWidth === 0 || marqueeWidth === 0 || marqueeHeight === 0) {
           updateDimensions();
-          if (cardWidth === 0 || marqueeWidth === 0) return;
+          if (cardWidth === 0 || marqueeWidth === 0 || marqueeHeight === 0) return;
         }
 
         // Get the current Y coordinate of the marquee section via cached getter (0 DOM reads)
@@ -299,6 +303,13 @@ export default function Gallery() {
       {/* Decorative Blur Backgrounds */}
       <div className="absolute top-1/4 left-1/10 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/10 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] pointer-events-none" />
+
+      {/* Main Title Section (Absolute centered above marquee) */}
+      <div className="gallery-title-wrapper absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none z-20">
+        <h1 className="text-[70px] md:text-[106px] font-bold tracking-tight font-mirava-sans bg-gradient-to-r from-white via-blue-100 to-blue-300 bg-clip-text text-transparent">
+          OUR GALLERY
+        </h1>
+      </div>
 
       {/* Gallery Marquee Row Container */}
       <div className="gallery-marquee-section w-full relative z-10 flex items-center overflow-visible py-3">

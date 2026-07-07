@@ -112,7 +112,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
 
   return (
     <div
-      className={`ticket-wrapper group relative flex flex-col h-[520px] w-full max-w-[340px] mx-auto rounded-[3px] ${ticket.color} text-slate-950 shadow-2xl ${ticket.glowColor} cursor-pointer font-absans`}
+      className={`ticket-wrapper group relative flex flex-col h-[520px] w-full max-w-[340px] mx-auto rounded-[3px] ${ticket.color} text-slate-950 shadow-2xl ${ticket.glowColor} cursor-pointer font-google-sans`}
       style={{
         clipPath: generateClipPath(),
         WebkitMaskImage: `
@@ -137,10 +137,10 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       <div className="bg-white m-4 p-5 rounded-[2px] flex flex-col justify-between min-h-[160px] shadow-sm">
         <div className="flex justify-between items-start">
           <div>
-            <div className="font-absans text-xl font-black tracking-tight flex items-center gap-1 text-slate-900">
-              <span className="text-blue-600 font-absans">&#123;</span>
+            <div className="font-google-sans text-xl font-black tracking-tight flex items-center gap-1 text-slate-900">
+              <span className="text-blue-600 font-google-sans">&#123;</span>
               Genesis
-              <span className="text-blue-600 font-absans">&#125;</span>
+              <span className="text-blue-600 font-google-sans">&#125;</span>
             </div>
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 mt-1">
               {ticket.category}
@@ -170,7 +170,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       <div className="h-6 shrink-0" />
 
       {/* Ticket Details (Middle Section) */}
-      <div className="flex flex-col justify-between flex-grow px-7 py-4 font-absans">
+      <div className="flex flex-col justify-between flex-grow px-7 py-4 font-google-sans">
         <div className="space-y-4">
           <div>
             <div className="text-slate-900/60 text-[11px] uppercase tracking-wider font-bold">

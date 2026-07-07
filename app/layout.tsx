@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Outfit } from "next/font/google";
+import { Geist, Geist_Mono, Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import "@fontsource/google-sans/index.css";
@@ -27,6 +27,12 @@ const absans = localFont({
   variable: "--font-absans",
 });
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-mirava-sans",
+  subsets: ["latin"],
+  weight: ["400", "700", "800"],
+});
+
 export const metadata: Metadata = {
   title: "Genesis-6.0",
   description: "IEEE ",
@@ -43,7 +49,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${absans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${absans.variable} ${plusJakartaSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Navbar />

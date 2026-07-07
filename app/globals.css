@@ -12,6 +12,7 @@
   --font-mono: var(--font-geist-mono);
   --font-google-sans: "Google Sans", var(--font-outfit), sans-serif;
   --font-absans: var(--font-absans), sans-serif;
+  --font-mirava-sans: var(--font-mirava-sans), "Mirava Sans", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {

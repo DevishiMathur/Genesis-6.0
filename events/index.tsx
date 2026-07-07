@@ -75,7 +75,7 @@ const TICKETS_DATA: TicketData[] = [
 export default function Events() {
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col items-center pt-36 md:pt-40 pb-24 font-absans text-white overflow-x-hidden"
+      className="relative min-h-screen w-full flex flex-col items-center pt-36 md:pt-40 pb-24 font-sans text-white overflow-x-hidden"
       style={{
         background: "linear-gradient(135deg, #07162c 0%, #0e2954 35%, #1f5194 70%, #60a5fa 100%)",
       }}
@@ -86,7 +86,7 @@ export default function Events() {
 
       {/* Main Title Section */}
       <div className="text-center relative z-10 mb-28">
-        <h1 className="event-title text-[70px] md:text-[106px] font-bold tracking-tight font-absans bg-gradient-to-r from-white via-blue-100 to-blue-300 bg-clip-text text-transparent">
+        <h1 className="event-title text-[70px] md:text-[106px] font-bold tracking-tight font-mirava-sans bg-gradient-to-r from-white via-blue-100 to-blue-300 bg-clip-text text-transparent">
           OUR EVENTS
         </h1>
       </div>

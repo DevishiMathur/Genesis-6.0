@@ -5,10 +5,9 @@ import Image from "next/image";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { useLenis } from "lenis/react";
-import { SplitText } from "gsap/SplitText";
 
 // Register GSAP plugins
-gsap.registerPlugin(useGSAP, SplitText);
+gsap.registerPlugin(useGSAP);
 
 const RIPPLE_CONFIG = {
   riseRate: 0.45,       // The multiplier for shifting the text upward as the marquee goes lower
@@ -17,6 +16,20 @@ const RIPPLE_CONFIG = {
   rippleRadius: 220,    // Gaussian standard deviation (sigma) defining the proximity envelope
   followEase: 0.22,     // Linear interpolation factor for text position updates (much faster follow)
   velocityEase: 0.35,   // Linear interpolation factor for marquee velocity smoothing (instantaneous reaction)
+};
+
+const BEND_CONFIG = {
+  // Base U-Curve Geometry
+  centerOffset: 80,         // Vertical displacement (px) at screen center (U-valley bottom)
+  edgeOffset: -60,          // Vertical displacement (px) at screen edges (U-valley tops)
+  minScale: 0.85,           // Scale of cards at the screen edges
+  maxScale: 1.30,           // Scale of cards in the center focus
+  
+  // Dynamic Scroll Forces
+  verticalBendFactor: 11.5,
+  tensionFactor: 15.0,      // Vertical sag under horizontal speed
+  dragLagFactor: 22.0,      // Trailing wave lag amplitude
+  maxBend: 320,
 };
 
 interface GalleryImage {
@@ -89,8 +102,8 @@ const GALLERY_IMAGES: GalleryImage[] = [
   },
 ];
 
-// Duplicate images to create a seamless infinite scrolling track
-const DUPLICATED_IMAGES = [...GALLERY_IMAGES, ...GALLERY_IMAGES];
+// Duplicate images to create a seamless infinite scrolling track (tripled to fully cover ultra-wide monitors)
+const DUPLICATED_IMAGES = [...GALLERY_IMAGES, ...GALLERY_IMAGES, ...GALLERY_IMAGES];
 
 export default function Gallery() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,10 +111,6 @@ export default function Gallery() {
   const [activeImage, setActiveImage] = useState<GalleryImage | null>(null);
 
   const lenis = useLenis();
-  const scrollVelocityRef = useRef(0);
-  useLenis((lenis) => {
-    scrollVelocityRef.current = lenis.velocity;
-  });
 
   // Stop Lenis vertical scroll when in Gallery component, restoring on unmount
   useEffect(() => {
@@ -160,45 +169,23 @@ export default function Gallery() {
     const targetsGradient = container.querySelectorAll(".gallery-text-target-gradient");
     const targetsSolid = container.querySelectorAll(".gallery-text-target-solid");
 
-    // Split text targets: gradient lines for the title and solid lines for the subheadings
-    const splitGradient = new SplitText(targetsGradient, {
-      type: "lines",
-      linesClass: "gallery-text-line inline-block w-full bg-gradient-to-r from-white via-blue-100 to-blue-300 bg-clip-text text-transparent",
-    });
-    const splitSolid = new SplitText(targetsSolid, {
-      type: "lines",
-      linesClass: "gallery-text-line inline-block w-full text-blue-100",
-    });
-
-    const lines = [...splitGradient.lines, ...splitSolid.lines];
+    const lines = [...targetsGradient, ...targetsSolid];
 
     // Apply initial 3D transforms for optimization
     gsap.set(lines, { force3D: true });
 
-    // Temporarily remove parent backgrounds on the gradient element to prevent clipping when children are translated
-    gsap.set(targetsGradient, {
-      background: "none",
-      webkitBackgroundClip: "unset",
-      backgroundClip: "unset",
-    });
-
-    // Create high-performance cached property getters/setters
-    const getMarqueeY = gsap.getProperty(marqueeSection);
-    const getMarqueeXPercent = gsap.getProperty(marquee);
-
-    // Create quickSetter instances
+    // Create high-performance quickSetter instances
     const lineSetters = lines.map(line => gsap.quickSetter(line, "y", "px"));
     const cardYSetters = cards.map(card => gsap.quickSetter(card, "y", "px"));
-    const cardRotSetters = cards.map(card => gsap.quickSetter(card, "rotation", "deg"));
+    const cardScaleSetters = cards.map(card => gsap.quickSetter(card, "scale"));
+    const cardZSetters = cards.map(card => gsap.quickSetter(card, "zIndex"));
+    const marqueeYSetter = gsap.quickSetter(marqueeSection, "y", "px");
+    const marqueeXSetter = gsap.quickSetter(marquee, "x", "px");
 
     const cardYDisplacements = cards.map(() => 0);
-    const cardRotDisplacements = cards.map(() => 0);
-
-    // Initialize high-performance quickTo for smooth mouse-follow Y positions
-    const quickY = gsap.quickTo(marqueeSection, "y", {
-      duration: 2.0,
-      ease: "power3.out",
-    });
+    const cardScaleDisplacements = cards.map(() => 1);
+    const cardZPositions = cards.map(() => 0);
+    const lineDisplacements = lines.map(() => 0);
 
     cards.forEach(card => {
       gsap.set(card, {
@@ -216,11 +203,27 @@ export default function Gallery() {
     let screenWidth = 0;
     let lastMarqueeY = 0;
     let smoothVelY = 0;
+    let smoothVelX = 0;
+
+    // Y position states for custom marquee follow lerp
+    let currentMarqueeY = 0;
+    let targetMarqueeY = 0;
+
+    // Autoplay speed and direction states (smooth direction reversal) - initialized to a placeholder, updated dynamically
+    let currentAutoplaySpeed = -1.2;
+    let targetAutoplaySpeed = -1.2;
+
+    // Curve influence tracking (for velocity-dependent curved carousel mapping)
+    let curveInfluence = 0;
 
     // Text lines geometry tracking
     let restingYPositions: number[] = [];
     let marqueeInitialTop = 0;
-    const lineDisplacements = lines.map(() => 0);
+
+    // Scroll-driven horizontal marquee position states (unwrapped track in pixels)
+    let currentX = 0;
+    let targetX = 0;
+    let wrapLimit = 0;
 
     const updateDimensions = () => {
       if (cards.length === 0) return;
@@ -241,20 +244,29 @@ export default function Gallery() {
       }
       screenWidth = window.innerWidth;
 
+      if (cardWidth > 0 && marqueeWidth > 0) {
+        wrapLimit = GALLERY_IMAGES.length * (cardWidth + cardGap);
+        // Calculate autoplay speed using the original 2x width reference (wrapLimit * 2) so it matches original -0.05% speed
+        const baseSpeed = -(wrapLimit * 2) * 0.0005;
+        if (currentAutoplaySpeed === -1.2) {
+          currentAutoplaySpeed = baseSpeed;
+          targetAutoplaySpeed = baseSpeed;
+        } else {
+          const dir = targetAutoplaySpeed > 0 ? 1 : -1;
+          targetAutoplaySpeed = dir * Math.abs(baseSpeed);
+        }
+      }
+
       // Track text line geometry
       if (containerRef.current) {
         const containerRect = containerRef.current.getBoundingClientRect();
 
-        // Reset offsets temporarily to measure true resting positions
-        lines.forEach(line => gsap.set(line, { y: 0 }));
-
-        restingYPositions = lines.map(line => {
+        // Calculate resting positions mathematically without resetting styles (no layout thrashing!)
+        restingYPositions = lines.map((line, idx) => {
           const rect = line.getBoundingClientRect();
-          return rect.top - containerRect.top + rect.height / 2;
+          const currentDisp = lineDisplacements[idx] || 0;
+          return rect.top - containerRect.top + rect.height / 2 - currentDisp;
         });
-
-        // Restore line displacements
-        lines.forEach((line, idx) => gsap.set(line, { y: lineDisplacements[idx] }));
       }
     };
 
@@ -270,9 +282,12 @@ export default function Gallery() {
     updateDimensions();
     window.addEventListener("resize", handleResize);
 
-    // Scroll-driven horizontal marquee position states (unwrapped track)
-    let currentXPercent = 0;
-    let targetXPercent = 0;
+    // Recalculate dimensions once fonts are loaded to avoid layout jumps
+    if (typeof document !== "undefined" && document.fonts) {
+      document.fonts.ready.then(() => {
+        updateDimensions();
+      });
+    }
 
     const updatePhysics = () => {
       if (cards.length === 0) return;
@@ -282,36 +297,54 @@ export default function Gallery() {
         if (cardWidth === 0 || marqueeWidth === 0 || marqueeHeight === 0 || screenWidth === 0) return;
       }
 
-      // Baseline autoplay movement to the left (3% of track width per second at 60fps)
-      targetXPercent -= 0.05;
+      // Interpolate autoplay speed for dynamic, smooth direction reversal
+      currentAutoplaySpeed = gsap.utils.interpolate(currentAutoplaySpeed, targetAutoplaySpeed, 0.04);
+      targetX += currentAutoplaySpeed;
 
       // Smoothly transition horizontal marquee position
-      const nextXPercent = gsap.utils.interpolate(currentXPercent, targetXPercent, 0.08);
-      const velX = nextXPercent - currentXPercent;
-      currentXPercent = nextXPercent;
+      const nextX = gsap.utils.interpolate(currentX, targetX, 0.08);
+      const velX = nextX - currentX;
+      currentX = nextX;
 
-      // Render the wrapped value to keep track infinite
-      gsap.set(marquee, { xPercent: gsap.utils.wrap(-50, 0, currentXPercent) });
-
-      // Get the current Y coordinate of the marquee section via cached getter (0 DOM reads)
-      const currentMarqueeY = getMarqueeY("y") as number || 0;
-
-      // Initialize last Y if it's the first frame
-      if (lastMarqueeY === 0) {
-        lastMarqueeY = currentMarqueeY;
+      // Wrap currentX and targetX directly to prevent numbers from growing infinitely
+      if (currentX < -wrapLimit) {
+        currentX += wrapLimit;
+        targetX += wrapLimit;
+      } else if (currentX > 0) {
+        currentX -= wrapLimit;
+        targetX -= wrapLimit;
       }
 
-      // Clamp and calculate raw velocity per frame based on horizontal motion and vertical section follow
+      // Render horizontal position using quickSetter (transform: translate3d)
+      marqueeXSetter(currentX);
+
+      // Smoothly follow the mouse Y (replace quickTo tween with lightweight local lerp)
+      currentMarqueeY = gsap.utils.interpolate(currentMarqueeY, targetMarqueeY, 0.05);
+      marqueeYSetter(currentMarqueeY);
+
+      // Calculate independent horizontal and vertical velocities (convert pixel-based velX to equivalent percentage using original 2x width reference so bending intensity is preserved)
+      const velXPercent = (velX / (wrapLimit * 2)) * 100;
+      const rawVelX = gsap.utils.clamp(-30, 30, velXPercent);
+      smoothVelX = gsap.utils.interpolate(smoothVelX, rawVelX, RIPPLE_CONFIG.velocityEase);
+      if (Math.abs(smoothVelX) < 0.01) {
+        smoothVelX = 0;
+      }
+
       const verticalContribution = currentMarqueeY - lastMarqueeY;
       lastMarqueeY = currentMarqueeY;
-
-      const rawVelY = gsap.utils.clamp(-30, 30, (velX * 1.5) + verticalContribution);
-
-      // Smooth the velocity using lerp
+      const rawVelY = gsap.utils.clamp(-30, 30, verticalContribution);
       smoothVelY = gsap.utils.interpolate(smoothVelY, rawVelY, RIPPLE_CONFIG.velocityEase);
       if (Math.abs(smoothVelY) < 0.01) {
         smoothVelY = 0;
       }
+
+      // Combined velocity for text ripple excitement
+      const textRippleExcitement = Math.abs(smoothVelX * 1.5) + Math.abs(smoothVelY);
+
+      // Calculate scroll activity influence (0 to 1) based on current horizontal speed
+      const currentSpeed = Math.abs(smoothVelX);
+      const targetInfluence = currentSpeed > 0.055 ? Math.min(1.0, (currentSpeed - 0.05) * 2.0) : 0;
+      curveInfluence = gsap.utils.interpolate(curveInfluence, targetInfluence, 0.1);
 
       // Calculate current marquee center relative to container
       const marqueeCenterY = marqueeInitialTop + currentMarqueeY + marqueeHeight / 2;
@@ -331,10 +364,9 @@ export default function Gallery() {
         // 2. Wake / Ripple effect
         const distY = restingY - marqueeCenterY;
         const proximity = Math.exp(-(distY * distY) / (2 * RIPPLE_CONFIG.rippleRadius * RIPPLE_CONFIG.rippleRadius));
-        
+
         // Deadzone for velocity factor
-        const absVel = Math.abs(smoothVelY);
-        const velFactor = absVel < 0.05 ? 0 : absVel;
+        const velFactor = textRippleExcitement < 0.05 ? 0 : textRippleExcitement;
         const targetRippleY = Math.sign(distY) * proximity * velFactor * RIPPLE_CONFIG.wakeStrength;
 
         // Combined target displacement
@@ -356,9 +388,8 @@ export default function Gallery() {
         }
       });
 
-      // Calculate marquee screen position mathematically from wrapped xPercent property
-      const xPercent = getMarqueeXPercent("xPercent") as number || 0;
-      const marqueeX = (xPercent / 100) * marqueeWidth;
+      // Calculate marquee screen position mathematically
+      const marqueeX = currentX;
 
       // Determine center of screen
       const screenCenterX = screenWidth / 2;
@@ -366,9 +397,6 @@ export default function Gallery() {
       // Influence parameters
       const sigma = Math.max(150, Math.min(340, screenWidth * 0.26));
       const twoSigmaSq = 2 * sigma * sigma;
-      const bendFactor = 11.5;
-      const maxBend = 300;
-      const maxRotation = 9;
 
       cards.forEach((card, i) => {
         // Calculate current screen center of this card mathematically (0 DOM reads)
@@ -377,20 +405,38 @@ export default function Gallery() {
 
         // Distance to the center of the screen
         const distX = cardScreenX - screenCenterX;
+        const progress = distX / sigma;
 
         // Gaussian weight based on horizontal distance from screen center
-        const weight = Math.exp(-(distX * distX) / twoSigmaSq);
+        const weight = Math.exp(-progress * progress);
 
-        // Vertical bend: proportional to vertical marquee velocity and Gaussian weight
-        const targetY = smoothVelY * bendFactor * weight;
-        const clampedY = gsap.utils.clamp(-maxBend, maxBend, targetY);
+        // 1. Base U-shaped valley offset curve: center is down, edges are up (scaled by curveInfluence)
+        const baseCurveY = gsap.utils.interpolate(BEND_CONFIG.edgeOffset, BEND_CONFIG.centerOffset, weight);
+        const activeCurveY = baseCurveY * curveInfluence;
 
-        // Dynamic rotation (tilt) matching the curve slope
-        const targetRot = - (distX / sigma) * (clampedY / maxBend) * maxRotation;
-        const clampedRot = gsap.utils.clamp(-maxRotation, maxRotation, targetRot);
+        // 2. Vertical Follow Bend (from vertical marquee movement)
+        const bendY = smoothVelY * BEND_CONFIG.verticalBendFactor * weight;
+
+        // 3. Drag-Induced Tension Sag (entire row sags slightly under horizontal speed)
+        const bendXSymmetric = -Math.abs(smoothVelX) * BEND_CONFIG.tensionFactor * weight * curveInfluence;
+
+        // 4. Fluid Drag Lag (asymmetric trailing wave along the horizontal layout)
+        const bendXAsymmetric = smoothVelX * BEND_CONFIG.dragLagFactor * progress * weight;
+
+        // Combined vertical displacement clamped to bounds
+        const targetY = activeCurveY + bendY + bendXSymmetric + bendXAsymmetric;
+        const clampedY = gsap.utils.clamp(-BEND_CONFIG.maxBend, BEND_CONFIG.maxBend, targetY);
+
+        // 5. Fisheye center focus scaling (interpolates between flat 1.0 and U-scale based on curveInfluence)
+        const curveScale = gsap.utils.interpolate(BEND_CONFIG.minScale, BEND_CONFIG.maxScale, weight);
+        const targetScale = gsap.utils.interpolate(1.0, curveScale, curveInfluence);
+
+        // 6. Depth sorting (highest z-index in the center, transitions as curve expands)
+        const targetZ = Math.round(gsap.utils.interpolate(0, Math.round(weight * 100), curveInfluence));
 
         const lastY = cardYDisplacements[i];
-        const lastRot = cardRotDisplacements[i];
+        const lastScale = cardScaleDisplacements[i];
+        const lastZ = cardZPositions[i];
 
         // Threshold check to avoid tiny updates
         if (Math.abs(clampedY - lastY) > 0.05) {
@@ -401,12 +447,14 @@ export default function Gallery() {
           cardYDisplacements[i] = clampedY;
         }
 
-        if (Math.abs(clampedRot - lastRot) > 0.05) {
-          cardRotSetters[i](clampedRot);
-          cardRotDisplacements[i] = clampedRot;
-        } else if (lastRot !== clampedRot && Math.abs(clampedRot) < 0.01) {
-          cardRotSetters[i](clampedRot);
-          cardRotDisplacements[i] = clampedRot;
+        if (Math.abs(targetScale - lastScale) > 0.005) {
+          cardScaleSetters[i](targetScale);
+          cardScaleDisplacements[i] = targetScale;
+        }
+
+        if (targetZ !== lastZ) {
+          cardZSetters[i](targetZ);
+          cardZPositions[i] = targetZ;
         }
       });
     };
@@ -414,8 +462,16 @@ export default function Gallery() {
     gsap.ticker.add(updatePhysics);
 
     const handleWheel = (e: WheelEvent) => {
-      // deltaY > 0 means scroll down, moving images to the left (decreasing xPercent)
-      targetXPercent -= (e.deltaY * 0.04);
+      // Scale wheel delta to pixel scrolling using mathematically matched scroll sensitivity
+      // Reduced from 0.0008 to 0.0005 for a smoother, slower scroll speed
+      const scrollSensitivity = 0.0005 * wrapLimit;
+      targetX -= (e.deltaY * scrollSensitivity);
+
+      // Smoothly switch target autoplay direction when scroll exceeds a noise threshold
+      if (Math.abs(e.deltaY) > 1) {
+        const baseSpeed = Math.abs((wrapLimit * 2) * 0.0005);
+        targetAutoplaySpeed = e.deltaY > 0 ? -baseSpeed : baseSpeed;
+      }
     };
 
     let touchStartY = 0;
@@ -430,7 +486,16 @@ export default function Gallery() {
         const touchY = e.touches[0].clientY;
         const deltaY = touchStartY - touchY;
         touchStartY = touchY;
-        targetXPercent -= (deltaY * 0.12);
+        // Scale swipe delta to pixel scrolling using mathematically matched touch sensitivity
+        // Reduced from 0.0024 to 0.0015 for a smoother, slower drag speed
+        const touchSensitivity = 0.0015 * wrapLimit;
+        targetX -= (deltaY * touchSensitivity);
+
+        // Smoothly switch target autoplay direction when swipe exceeds a noise threshold
+        if (Math.abs(deltaY) > 0.5) {
+          const baseSpeed = Math.abs((wrapLimit * 2) * 0.0005);
+          targetAutoplaySpeed = deltaY > 0 ? -baseSpeed : baseSpeed;
+        }
       }
     };
 
@@ -445,14 +510,11 @@ export default function Gallery() {
       const minTargetY = 0;
       const maxTargetY = windowHeight - navbarHeight - marqueeHeight;
 
-      let targetY;
       if (minTargetY < maxTargetY) {
-        targetY = gsap.utils.clamp(minTargetY, maxTargetY, idealY);
+        targetMarqueeY = gsap.utils.clamp(minTargetY, maxTargetY, idealY);
       } else {
-        targetY = 0;
+        targetMarqueeY = 0;
       }
-
-      quickY(targetY);
     };
 
     const mm = gsap.matchMedia();
@@ -481,13 +543,6 @@ export default function Gallery() {
       container.removeEventListener("touchstart", handleTouchStart);
       container.removeEventListener("touchmove", handleTouchMove);
       mm.revert();
-
-      // Restore parent styling properties
-      gsap.set(targetsGradient, {
-        clearProps: "background,webkitBackgroundClip,backgroundClip",
-      });
-      splitGradient.revert();
-      splitSolid.revert();
     };
   }, { scope: containerRef });
 
@@ -581,7 +636,7 @@ export default function Gallery() {
   );
 }
 
-// Memoized title section to prevent layout/SplitText disruption on parent state updates
+// Memoized title section to prevent layout disruption on parent state updates
 const GalleryTitle = memo(() => {
   return (
     <div className="gallery-title-wrapper absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none z-20">
@@ -615,20 +670,20 @@ const GalleryMarqueeTrack = memo(({ marqueeRef, images, onImageClick }: GalleryM
   return (
     <div
       ref={marqueeRef}
-      className="flex gap-2 sm:gap-3 w-max whitespace-nowrap will-change-transform"
+      className="flex gap-1.5 sm:gap-2 w-max whitespace-nowrap will-change-transform"
     >
       {images.map((image, index) => (
         <div
           key={index}
           onClick={() => onImageClick(image)}
-          className="gallery-card w-[140px] sm:w-[185px] md:w-[230px] h-[86px] sm:h-[114px] md:h-[142px] flex-shrink-0 relative overflow-hidden rounded-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.3)] backdrop-blur-sm cursor-pointer"
+          className="gallery-card w-[140px] sm:w-[185px] md:w-[230px] h-[86px] sm:h-[114px] md:h-[142px] flex-shrink-0 relative overflow-hidden rounded-[12px] border border-white/10 cursor-pointer"
         >
           <Image
             src={image.src}
             alt={image.title}
             fill
             sizes="(max-width: 768px) 140px, (max-width: 1024px) 185px, 230px"
-            priority={index < 5} // Preload first 5 images above the fold for optimized LCP
+            priority={index < 10} // Preload first 10 unique images above the fold for optimized LCP and no lazy-load pop-in
             className="object-cover"
           />
         </div>
